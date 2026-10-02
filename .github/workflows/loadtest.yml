@@ -1,0 +1,35 @@
+# Manual load test: Actions tab > Load test > Run workflow.
+# Sends a few requests per second to the live service so the Grafana dashboard has data.
+name: Load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Service to test (must be one you own)
+        default: https://turfslot-api.onrender.com
+        required: true
+      duration:
+        description: Seconds to run (max 600)
+        default: "180"
+        required: true
+      rps:
+        description: Actions per second (max 10)
+        default: "3"
+        required: true
+
+jobs:
+  loadtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run load test
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          DURATION: ${{ inputs.duration }}
+          RPS: ${{ inputs.rps }}
+        run: python monitoring/loadtest.py
