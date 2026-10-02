@@ -124,7 +124,7 @@ Coverage includes slot maths, auth and token revocation, password reset, role ch
 1. Push this repo to GitHub. The CI workflow runs on every push.
 2. In Render: **New > Blueprint**, pick the repo. `render.yaml` creates the web service (Docker) and a PostgreSQL database, generates `SECRET_KEY` and wires `DATABASE_URL`.
 3. Optional: set `STORAGE_BACKEND=cloudinary` and `CLOUDINARY_URL` so uploaded images survive redeploys, and `EMAIL_BACKEND=smtp` with `SMTP_*` to send real emails.
-4. Seed data from the Render shell: `python -m app.cli seed-demo`.
+4. Demo turfs and accounts are created on startup because `render.yaml` sets `SEED_DEMO=true` (free instances have no shell). Remove that setting for a real deployment.
 
 Notes on the free tier: the service sleeps when idle, local disk is wiped on deploy, and free databases are time-limited. Check Render's current limits.
 
@@ -143,6 +143,7 @@ All settings are environment variables; see [`.env.example`](.env.example). Key 
 | `MAX_PENDING_BOOKINGS_PER_USER` | `3` | Stops one customer from holding many slots unpaid |
 | `STORAGE_BACKEND` | `local` | `local` or `cloudinary` |
 | `EMAIL_BACKEND` | `console` | `console` (log only), `smtp`, or `memory` (tests) |
+| `SEED_DEMO` | `false` | `true` loads demo turfs and accounts when the container starts |
 | `METRICS_TOKEN` | empty | If set, `/metrics` requires `Authorization: Bearer <token>` |
 | `WEB_CONCURRENCY` | `1` | Uvicorn workers. With more than one, use Prometheus multiprocess mode for accurate metrics |
 

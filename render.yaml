@@ -19,6 +19,9 @@ services:
         generateValue: true
       - key: WEB_CONCURRENCY
         value: "1"
+      # Loads the demo turfs and accounts on startup (free instances have no shell to run it by hand).
+      - key: SEED_DEMO
+        value: "true"
       - key: LOG_JSON
         value: "true"
       # Protects /metrics. Use this value as the bearer token in your Prometheus / Grafana Cloud scrape job.
