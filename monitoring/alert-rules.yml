@@ -1,0 +1,44 @@
+# Alert rules in Prometheus format (validated in CI with promtool).
+# In Grafana Cloud, create the same alerts under Alerts & IRM > Alert rules
+# using these expressions (see monitoring/README.md).
+groups:
+  - name: turfslot
+    rules:
+      - alert: TurfSlotDown
+        expr: up{job=~".*turfslot.*"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: TurfSlot API is not answering scrapes
+          description: "Prometheus has not been able to scrape {{ $labels.instance }} for 3 minutes."
+
+      - alert: TurfSlotHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: More than 1% of requests are failing
+          description: "5xx error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: TurfSlotSlowResponses
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 latency is above 1 second
+          description: "95th percentile response time is {{ $value | humanizeDuration }}."
+
+      - alert: TurfSlotBookingConflictSpike
+        expr: sum(increase(turfslot_booking_conflicts_total[10m])) > 20
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Unusual number of double-booking attempts
+          description: "{{ $value | humanize }} slot conflicts in 10 minutes. Possible bot or a client retry bug."

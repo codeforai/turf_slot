@@ -1,0 +1,38 @@
+# Local development: `docker compose up --build`, then open http://localhost:8000/docs
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: turfslot
+      POSTGRES_PASSWORD: turfslot
+      POSTGRES_DB: turfslot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U turfslot -d turfslot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+psycopg://turfslot:turfslot@db:5432/turfslot
+      LOG_JSON: "false"
+      EMAIL_BACKEND: console
+    ports:
+      - "8000:8000"
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  media:
