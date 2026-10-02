@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.15.11
+      - run: ruff check .
+      - run: ruff format --check .
+
+  monitoring-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate alert rules
+        run: |
+          docker run --rm -v "$PWD/monitoring:/monitoring:ro" --entrypoint promtool prom/prometheus:latest \
+            check rules /monitoring/alert-rules.yml
+      - name: Validate Grafana dashboard JSON
+        run: python3 -c "import json; d = json.load(open('monitoring/grafana-dashboard.json')); print(d['title'], '-', len(d['panels']), 'panels')"
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: turfslot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/turfslot_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Run tests (migrations up/down/up, API, concurrency)
+        run: python -m pytest --junitxml=test-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results.xml
+
+  docker:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: turfslot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t turfslot-api:${{ github.sha }} .
+      - name: Smoke test the container (migrations run on start, then readiness must pass)
+        run: |
+          docker run -d --name api --network host \
+            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/turfslot \
+            turfslot-api:${{ github.sha }}
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/ready; then echo; echo "ready"; exit 0; fi
+            sleep 2
+          done
+          echo "service never became ready"
+          docker logs api
+          exit 1
+      - name: Container logs
+        if: always()
+        run: docker logs api || true
