@@ -6,9 +6,12 @@ set -e
 echo "Applying database migrations..."
 alembic upgrade head
 
+# Free hosting tiers have no shell, so demo data can be loaded at startup instead.
+# Safe to run on every start: it only creates what is missing.
 if [ "${SEED_DEMO:-false}" = "true" ]; then
   echo "Seeding demo data..."
-  python -m app.cli seed-demo --force
+  # A seeding problem must never stop the service from starting.
+  python -m app.cli seed-demo --force || echo "WARNING: demo seeding failed; starting without it"
 fi
 
 # One worker by default: small instances (512 MB) and per-process Prometheus metrics.
