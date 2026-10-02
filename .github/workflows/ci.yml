@@ -91,14 +91,17 @@ jobs:
         run: |
           docker run -d --name api --network host \
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/turfslot \
+            -e SEED_DEMO=true \
             turfslot-api:${{ github.sha }}
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/health/ready; then echo; echo "ready"; exit 0; fi
+            if curl -fsS http://localhost:8000/health/ready; then echo; echo "ready"; break; fi
             sleep 2
           done
-          echo "service never became ready"
-          docker logs api
-          exit 1
+          curl -fsS http://localhost:8000/health/ready > /dev/null || { echo "service never became ready"; exit 1; }
+          echo "Demo data should have been seeded on startup:"
+          curl -fsS http://localhost:8000/turfs | tee turfs.json
+          echo
+          grep -q '"total":3' turfs.json
       - name: Container logs
         if: always()
         run: docker logs api || true
